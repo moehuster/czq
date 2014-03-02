@@ -1,0 +1,98 @@
+内存管理
+	sbrk：通过指定偏移调整可用内存区域终点，返回旧的终点。
+	(void*)-1/0xffffffff表示错
+	brk：通过指定终点地址来调整可用内存区域终点。返回0表示成功，
+	-1表示失败
+	两次sbrk之间如果调用了其它函数，返回的内存地址不一定还连续，
+	因为其它函数内部也可能调用sbrk或者brk。所以如果有连续性要求
+	时，最好用malloc/realloc。
+	mmap(vaddr,len,mode,flag,-1,0)把文件内容映射到内存，返回映射
+	到的虚拟内存地址。vaddr指定映射到哪个虚拟内存地址，一般不指定，
+	用NULL也就是0表示由系统自行安排合理的地址。len指定长度。mode
+	指定权限可以是PROT_READ/PROT_WRITE/PROT_EXEC任意一个或者多个
+	组合，类似ls -l时的rwx。flag是MAP_SHARED/MAP_PRIVATE二选一之
+	后跟MAP_ANONYMOUS/MAP_FIXED(/MAP_DENYWRITE)可组合，
+	MAP_ANONYMOUS表示不用文件，只能跟MAP_PRIVATE组合，MAP_FIXED
+	表示一定要用第一个参数指定的虚拟地址。<sys/mman.h>
+	失败返回(void*)-1。MAP_FAILED就是(void*)-1。
+	munmap(vaddr,len)释放映射的内存。
+	size a.out
+	time a.out
+	strace a.out
+	cat /proc/PID/maps
+	cat /proc/PID/smaps
+	
+	建议用C语言的内存分配管理库函数，它们会调用系统接口，更安全可靠。
+	
+文件系统
+	通用
+		设置权限chmod(名字,权限)0=ok,-1=err
+		read==4, write==2, execute==1, -==0
+		权限总是用三位八进制数表示，前加0（八进制）
+		改名／移动rename(原名字，新名字)0=ok,-1=err
+		查看详细信息lstat/stat/fstat(名字,结构变量地址)
+		struct stat;
+		struct stat {
+              mode_t    st_mode;//类型和权限
+              uid_t     st_uid;//用户id
+              off_t     st_size;//字节数
+              time_t    st_mtime;//最后修改时间
+              ...
+		};
+		潜规则：xxx_t的类型一般是某种整数类型。
+		潜规则：结构成员的名字一般是结构名缩写加下划线开头
+		lstat把符号链接本身当成文件处理，stat在遇到符号链接时处理
+		的是它所指向的目标文件，fstat(文件描述符,...)用来处理已经
+		打开的文件。
+		S_ISREG(st_mode)判断是否是正常文件
+		S_ISDIR(st_mode)判断是否是目录
+		S_ISFIFO(st_mode)判断是否是管道文件//mkfifo
+		S_ISLNK(st_mode)判断是否是符号链接//symlink(...)
+		S_ISSOCK(st_mode)判断是否是网络套接字文件
+		st_mode&0777得到权限值,三个八进制位依次是自己,同组和其它人的权限.
+		struct passwd* getpwuid(uid); 根据用户id取得用户信息<pwd.h>
+		struct passwd* getpwnam(name); 根据用户名取得用户信息<pwd.h>
+		struct passwd {
+              char   *pw_name;//用户名
+              char   *pw_passwd;//废弃
+              uid_t   pw_uid;//用户id
+              gid_t   pw_gid;//用户组id
+              char   *pw_gecos;//空闲
+              char   *pw_dir;//主目录
+              char   *pw_shell;//终端shell
+		};
+		系统内部存储时间都用一个大整数time_t类型.
+		time(NULL)函数返回系统当前时间.是从1970-1-1 0:0:0算起的总秒数.
+		char* ctime(time_t*),格式"Wed  Jun  30   21:49:08  1993\n"
+		struct tm* localtime/gmtime(time_t*) 返回年月日时分秒,在结构中.
+		struct tm {
+                  int tm_sec;//秒可以到60(闰秒)
+                  int tm_min;//分
+                  int tm_hour;//小时
+                  int tm_mday;//日1~31
+                  int tm_mon;//月需要+1
+                  int tm_year;//年需要+1900
+                  int tm_wday;//星期0~6
+                  int tm_yday;//一年里第几天,需要+1
+                  int tm_isdst;//是否夏令时,废弃
+		};
+		潜规则:返回结构指针的函数,一般指向的是那个函数内部定义的静态
+		局部变量,重复调用的话,第二次调用的数据会覆盖第一次的.
+		strftime(字符数组,数组大小,格式字符串,tm*)把结构变量里的时间
+		按照指定的格式转换成一个字符串,保存在字符数组中,返回字符串的
+		长度.%Y-%m-%d %H:%M:%S
+		
+		检查权限access(名字,要检查的权限)0=ok,-1=err
+		要检查的权限可以是F_OK,R_OK,W_OK,X_OK任意组合，分别表示存在、
+		可读、可写、可执行。
+		设置权限屏蔽umask(权限)返回旧的权限屏蔽值
+	目录<sys/stat.h>
+		创建，mkdir(目录名,权限)0=ok,-1=err
+		删除，rmdir(目录名)0=ok,-1=err
+		设置当前目录，chdir(目录名)0=ok,-1=err
+		取得当前目录，getcwd(char数组名,数组长度)返回数组名,失败返回NULL。
+		取得的是绝对路径。
+		取得目录内容...
+	文件//strcpy(buf,strcat(strcat(s,str1),str2));
+	system(命令字符串);<stdlib.h>
+	
