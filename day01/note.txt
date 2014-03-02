@@ -1,0 +1,110 @@
+陈宗权 
+chenzongquan@126.com,
+QQ:56048690,13811617168
+
+UC /
+UNIX/Linux C
+可执行文件格式 ELF，PE
+BIOS－MBR－GRUB－image－init（1）－sysinit
+用学会的知识，做想做的事情。
+文件系统
+多进程，多线程
+进程间通信，线程间同步
+网络通信
+库，时间，GDB，MAKEFILE。。。
+
+UNIX/Linux Shell脚本
+
+gcc选项：-O优化，-g产生调试信息，-MM产生依赖关系，
+	-fpic产生位置独立的代码，-l指定库文件（库名）,
+	-L指定库文件路径，-i,-I头文件，-shared产生动态库，
+	-static使用静态库，-Wall,-Werror,-std=
+静态库：libxxx.a(文件名),xxx库名
+方法：
+		.c文件(无main) gcc -c编译 -->.o
+      ar r/d/x/t libxxx.a a.o b.o ...
+		.h
+
+		.c(有main) #include ".h"
+		gcc libxxx.a .c;gcc -lxxx -Ldir .c
+动态库：
+方法：
+	.c文件(无main) gcc -c -fpic编译 -->.o
+	gcc -shared -olibxxx.so a.o b.o ...
+	.h
+
+	.c(有main) #include ".h"
+	gcc -lxxx -Ldir .c
+	export LD_LIBRARY_PATH=dir
+	a.out
+作业：写一个或者多个函数，实现表达式计算，double calculate(char* exp);
+分别写成静态库和动态库。另写一个程序来调用库里的这个函数，
+	从键盘输入表达式，输出计算结果。
+
+ 2345 60
+12345 60
+12345 6 
+
+=====================================================================
+
+gcc选项
+man手册
+静态库（产生库，使用库）
+产生：
+	1写a.c b.c文件（里面是想要放到库中的函数的定义）
+	2写头文件（里面是那些函数的声明）
+	3gcc -c a.c b.c产生.o文件
+	4ar r libxxx.a a.o b.o
+使用:use.c
+	gcc libxxx.a use.c -o ~/use
+	gcc -static -lxxx -L. use.c -o ~/use
+	其中-static表示如果同时存在同名的动态库和静态库时，
+	使用静态库（默认使用动态库）
+运行：
+	~/use
+	./a.out
+运行时不再依赖静态库，代码已经嵌入到可执行文件中。
+动态库（产生库，使用库，运行）
+产生：
+	1写a.c b.c文件（里面是想要放到库中的函数的定义）
+	2写头文件（里面是那些函数的声明）
+	3gcc -c -fpic a.c b.c产生.o文件
+	4gcc -shared -olibxxx.so a.o b.o
+	//gcc -fpic -shared -olibxxx.so a.c b.c
+使用：use.c
+	gcc -lxxx -L. use.c
+运行：
+	export LD_LIBRARY_PATH=库文件所在目录
+	./a.out
+运行时才加载动态库文件，要求动态库文件必须在环境变量
+LD_LIBRARY_PATH指定的目录下存在
+优点：便于共享，便于升级，可执行文件体积小
+
+环境变量
+	PATH指定系统去哪些目录下找命令对应的可执行文件。
+	注意默认不包括当前目录。如果希望能执行当前目录下的
+	可执行文件，需要把.加入到PATH环境变量中：
+	export PATH=$PATH:.
+或者
+	export PATH=.:$PATH
+环境变量默认只对当前终端有效，如果希望自动对所有新开地
+终端都生效，应该把这一句加入到用户配置文件~/.bashrc中
+(在末尾追加)。
+预定义宏：
+	puts(__DATE__);
+	puts(__TIME__);
+	puts(__FILE__);
+	puts(__func__);
+	printf("%d\n", __LINE__);
+自己定义变量最好不用_开头。
+#pragma pack(1)表示按1字节对齐补齐
+
+自行加载动态库：
+dlopen(带路径的库文件名字，RTLD_LAZY/RTLD_NOW)返回一个void*
+表示这个动态库，称为句柄。失败返回空指针。
+潜规则：返回指针的函数，一般用返回NULL表示失败，非空表示成功。
+dlsym(句柄，符号名)，返回一个指向那个符号的指针。
+dlerror()返回一个字符串，表示出错原因。没出错时不要调用它。
+dlclose(句柄)关闭动态库。
+#include <dlfcn.h>//dynamic load function
+gcc -ldl ...
