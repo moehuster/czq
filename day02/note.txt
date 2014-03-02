@@ -1,0 +1,138 @@
+环境：
+1、错误处理
+1) #include <errno.h> extern int errno;
+一般各种操作出错，一方面会返回表示错误的值，另一方面
+会设置errno为适当的值（在man手册中可以看到）。
+2）const char* strerror(int err);
+3）perror("提示信息")打印提示信息、冒号和当前错误信息。
+4）"%m"在printf中表示当前错误信息
+
+FILE*fp = fopen(....);
+if(fp==NULL)
+	printf("出错了:%m\n");
+潜规则：调用函数提供一个数组来取得字符串时，要同时传递
+数组名和数组长度，以免发生越界。
+在C程序中检查错误应该成为一种习惯！！
+不能通过errno来检查是否出错，只能在知道出错时用于检查是哪种错误！！
+2、环境变量：
+全局（可继承）export导出的环境变量
+局部（不可继承）没有导出的
+
+export name=value
+name=value
+int main();
+int main(int argc, char*argv[]);
+int main(int argc, char*argv[], char* env[]);
+
+a.out hello furong 123
+//4==>argc,
+//"a.out" "hello" "furong" "123"==>argv[0~3]
+
+env环境变量字符串数组
+argv命令行字符串数组
+
+潜规则：向函数传递指针数组的时候，一般不传递元素个数，而是
+把一个元素设置成NULL来表示结束位置。类似字符串的做法。
+env命令
+／／man -S1/2/3/... name
+//man -a name用q来跳到下一个,h显示帮助信息
+char* getenv("名字")取得环境变量的值
+int setenv("名字","值",是否覆盖)
+int putenv("名字=值")，不存在就增加，存在就覆盖。
+潜规则：返回整数的函数，一般用0表示成功，-1表示失败。如果
+返回的整数同时还有别的含义（比如编号、长度等），非负表示成功，
+负数表示失败。isxxx类的函数返回值可以看成bool类型。
+unsetenv(...)
+clearenv()
+环境变量的继承是由父到子，不能反过来。所以程序中设置的环境变量，
+回到shell之后就没有了。
+
+=====================================================================
+
+库：
+	静态库：
+		1。.c-->.o-->libxxx.a
+		  gcc -c, ar r
+		2。gcc libxxx.a use.c
+		   gcc -static -lxxx -L. use.c
+		3。a.out
+	动态库：
+		1. .c-->libxxx.so
+		   gcc -fpic -shared -olibxxx.so ...
+		2. gcc -lxxx -L. use.c
+		3. /lib,/usr/lib
+		  export LD_LIBRARY_PATH=.:~/lib
+		  a.out 
+	各自的优缺点
+	头文件：框架#ifndef/#define/#endif，函数/变量声明
+		auto,register,volatile,extern,static
+	环境变量LIBRARY_PATH可以替代-L
+	人为加载动态库：
+		1。#include <dlfcn.h>
+		2.dlopen/dlerror/dlsym/用完后dlclose
+		//char*s/*野指针*/;scanf("%s",s);
+		//void swap(int*a,int*b){
+		//int* t;
+		//*t=*a;*a=*b;*b=*t;
+		//}
+		//.....
+		//int x=10,y=20;
+		//swap(&x,&y);
+		//char* p="hi";sizeof(p)=? 4
+		3。四个函数在libdl.so里
+		  gcc -ldl use.c
+环境：
+	错误处理：#include <errno.h>
+		1.int类型的全局变量 errno，
+		  在发生错误时才应该使用
+		  可能值及其含义在man手册ERRORS部分
+		2.strerror(no)把错误号转换成描述字符串
+		3。perror(提示信息)
+		4.printf("提示信息:%m\n")
+		C++:try/catch/throw
+	环境变量：export后可以继承，env命令，set命令，unset命令
+		1。int main(int argc,char**argv,char**env)
+		2.人为声明extern char**environ
+		3.char* getenv(环境变量名)
+		  setenv(名，值，是否覆盖)//推荐使用
+		  putenv(名＝值)如果存在了一定用新的覆盖旧的
+			//char buf[100];
+			//strcpy(buf,"a=hello");
+			//putenv(buf)
+			//strcpy(buf,"b=world");
+			//putenv只是把字符串地址加入到环境变量数组中
+		  unsetenv/clearenv
+		程序运行时的环境变量是从父进程复制过来的(可继承的)
+man:
+	man 命令/函数名/头文件名
+	-S1/2/3/... 在第几节里找帮助
+	-a 查找全部帮助，用q跳到下一个。
+	-k key搜索全部带key的帮助名字，显示一个列表。 
+内存管理：0xffffffff
+	程序是一个可执行文件，执行起来就称为一个进程。进程都使用
+	虚拟内存地址，4G，操作系统只把用到的虚拟内存地址映射到物理
+	内存，通过为这个进程设置一个内存页表来实现。不同进程的内存
+	是独立的。最后1G是内核代码。
+	分区：
+		代码区，只读，存的是指令和常量
+		数据区，全局变量和静态局部变量
+		BSS，未初始化的全局变量，自动置0
+		堆区，动态分配和释放
+		栈区，函数自动分配和释放，局部变量
+	动态分配：
+		C：malloc/calloc/realloc/free
+		C++: new/new[]/delete/delete[]
+		STL:Allocator
+		UNIX/LINUX:
+			sbrk/brk指定虚拟内存的终点
+				sbrk(增量)把终点按增量延伸，如果增量是负数则是收缩，
+				返回原来的终点。可用内存范围不包括终点。类似STL中的区间终点。
+				内存映射以页为单位给进程，由进程自己再细分。一页的大小用
+				getpagesize()可以取得，一般是4K。
+				brk(终点地址)
+				后面不用了的内存只要够一个整页就会及时释放
+			mmap
+			(内核级kmalloc,vmalloc...应用程序是用不了的)
+作业：输入若干个整数，q为止。从小到大排序输出。
+提示：scanf("%d", &d)返回成功读取到的数据个数
+
