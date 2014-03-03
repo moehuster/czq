@@ -1,0 +1,100 @@
+内存管理
+文件系统
+	通用
+	目录
+		创建，删除，设置当前目录，取得当前目录
+		取得目录内容：
+			目录里的每一条要么是一个文件，要么是个子目录，通称为一个目录
+			入口。<dirent.h>
+			opendir(目录名)打开一个目录（注意路径），返回一个DIR*代表打开
+			的这个目录，失败返回NULL。DIR结构内容不确定，只要知道它代表这
+			个目录就行了。
+			readdir(DIR*)返回一个struct dirent *，结构中有一个成员d_name
+			保存了目录入口（文件或者子目录）的名字。失败返回NULL。这个函数
+			可以反复调用，直到失败为止，每次读取一个目录入口。
+			每个目录下都有.和..这两个特殊的目录入口。
+			closedir(DIR*)关闭目录，释放相应资源。
+			
+			在UNIX/LINUX系统中，.开头的文件或者目录称为隐藏文件或者隐藏
+			目录，在readdir操作时照样会读取到，ls命令需要选项-a才会显示它们。
+			了解：
+			rewinddir(),
+ 			scandir(), 
+			seekdir(), 
+			telldir()
+			
+			注意，d_name中只有名字，没有路径，如果需要进行后续处理，需要自
+			己构造出完整的带路径的字符串，或者先把那个目录设置成当前目录。
+	文件
+		创建creat，一般不用它，而用open。
+		删除unlink(文件名)，可以带路径。实际是把硬链接数量减少1。硬链接是
+		若干个名字对应同一个文件。
+		内容读写
+			打开open(文件名,访问方式,[权限])打开一个文件，返回一个整数代表
+			这个文件，称为文件描述符(FileDescriptor),总是尽可能小的非负整数,
+			失败返回-1
+			0,(1),2,3,1
+			系统会事先打开三个文件：标准输入0(STDIN_FILENO)，标准输出1
+			(STDOUT_FILENO)，标准错误2(STDERR_FILENO)，对应C中stdin,stdout,
+			stderr和C++中的cin,cout,cerr。
+			访问方式首先必须三选一：O_RDONLY(只读),O_WRONLY(只写),O_RDWR(读写),
+			之后再跟其它标志可以组合：＊O_APPEND(追加),O_ASYNC(通过信号同步),
+			＊O_CREAT(如果不存在就创建),O_DIRECT(直接读写不用系统缓存),
+			＊O_EXCL(独占排它，必须要创建一个新文件，因此必须跟O_CREAT组合),
+			O_NONBLOCK(不等待),＊O_TRUNC(截断成0长度)
+			带O_CREAT标志时，open需要第三个参数表示权限。
+			读取read(fd,内存地址addr,字节数len)从文件中依次读取len个字节的数据
+			到内存addr开始的地方，返回成功读取到的字节数，可能比len小。失败
+			返回-1。返回0表示读完了。
+			3280-->1000-->1000-->1000-->280
+			read把文件中的数据逐个字节原样复制到内存中，不做任何格式转换。
+			写入write(fd,内存地址addr,字节数len)把内存地址addr开始的len字节的
+			数据逐个字节原样写入到文件中，不做任何格式转换。
+			123456789
+			由于没有格式转换，只有字符和字符串是人能直接理解的。
+			关闭close(文件描述符)
+			*/dev/tty也是个文件，代表本终端。
+			/dev/console代表系统终端，不用理会
+			*/dev/pts/?虚拟终端
+			/dev/null总是为空的文件，在脚本编程中在>右边
+			/dev/zero内容是无穷无尽的'\0'
+			定位lseek(fd,offset,whence)把当前读写位置设置到新位置，其中
+			offset表示偏移量（可正可负，正向文件尾方向，负向文件头方向），
+			whence表示参考点，可以是SEEK_SET/SEEK_CUR/SEEK_END分别表示
+			文件头/当前读写位置/文件尾,跟C语言完全一样。如果越过文件头会产
+			生错误，越过文件尾会产生空洞。返回以文件头为参考点的当前位置。
+			lseek(fd,0,SEEK_CUR)可以取得当前读写位置。
+			注意：读写共用同一个当前位置！！空洞都是\0.
+========其它===========
+			锁fcntl(fd,F_SETLK/F_GETLK/F_SETLKW,struct flock* p)给文件进
+			行加锁解锁。其中：
+				F_SETLK表示加锁
+				F_GETLK取得锁
+				F_SETLKW表示加锁直到成功为止
+         struct flock {
+             ...
+             short l_type; /*加锁类型: F_RDLCK,F_WRLCK,F_UNLCK */
+             short l_whence; /*加锁位置的参考点：SEEK_SET,SEEK_CUR,SEEK_END */
+             off_t l_start;/*加锁位置的偏移量*/
+             off_t l_len;     /*字节数*/
+             pid_t l_pid;     /*加锁的进程id(只有F_GETLK加锁时需要)*/
+             ...
+		};
+			已经加了读锁的地方，允许别的进程再加读锁，但不允许再加写锁。已经
+			加了写锁的地方就不允许再加其它锁了。
+			取得锁信息时需要指定l_type,l_whence,l_start,l_len。
+			ioctl(fd,request,...)向io设备发送请求。可以取得终端信息：
+			struct winsize w;//ws_row,ws_col
+			ioctl(STDIN_FILENO,TIOCGWINSZ,&w);
+			符号链接
+				symlink(原文件名，链接文件名)创建符号链接文件
+				readlink(链接文件名)读取符号链接文件本身的内容。
+			remove(文件或者目录名)对文件等同于unlink,对目录等同于rmdir。
+			复制文件描述符
+				dup(fd)复制一个文件描述符，返回一个新的文件描述符。
+				dup2(fd,newfd)把一个文件描述符复制成指定的文件描述符，newfd
+				如果原来是一个打开的文件描述符，那个文件会先被关闭。
+				
+				两个文件描述符都对应同一个文件，共享同一个读写位置。但关闭
+				其中一个，另一个还可以照常使用。
+
