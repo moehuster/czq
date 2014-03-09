@@ -1,0 +1,205 @@
+信号：
+	信号是什么？软中断，打断进程的正常流程，先去执行信号处理，之后再回来继续
+	执行正常流程。信号可能来源于硬件、软件调用api、用户键盘、某种条件。
+	kill -l信号列表, 每个信号有一个名字（宏定义常量）和一个代号（z整数值）
+	man signal
+	void (* signal(int sig,void(*handler)(int)))(int)
+	#include <signal.h>
+	man 7 signal / man -S7 signal
+	//inf.无穷大 -inf.负无穷大 nan不是一个数
+	SIGINT 键盘Ctrl+C
+	SIGQUIT 键盘Ctrl+\
+	SIGILL 非法指令
+	SIGABRT 调用abort函数
+	SIGFPE 整数除以0
+	SIGKILL 必杀信号
+	SIGSEGV 段错误（非法内存访问）
+	SIGPIPE 管道破裂（只有入口没有出口）
+	SIGALRM alarm定时器超时（实时时间）
+	SIGTERM 终止，kill命令默认发这个信号，关机时内核也发
+	SIGUSR1／SIGUSR2 自定义信号
+	SIGCHLD 子进程终止（不考虑其它情况）
+	SIGCONT 让挂起的进程继续
+	SIGSTOP 挂起进程
+	SIGTSTP 键盘Ctrl+Z
+	SIGPROF 概要计时器超时（本进程执行时间，含用户代码和调用 系统函数的时间）
+	SIGVTALRM 虚拟时钟超时（用户代码执行时间，不含系统函数的时间）
+	更多内容请参见man 7 signal
+	
+	对于信号，一般可以设置自己处理，方法是用signal(信号,自定义函数名)来登记某
+	个信号由某个自定义函数来处理。自定义函数的格式void functionname(int sig)，
+	函数名随意，形参sig表示收到的信号。
+	volatile在正常流程和信号处理流程都会访问的变量前最好加上这个修饰，表示变
+	量可能会其它流程改变，以免编译器优化时产生问题。
+	
+	系统规定有两个信号不允许自己处理：SIGKILL和SIGSTOP。
+	signal(信号,SIG_DFL)表示对这个信号恢复默认处理。
+	signal(信号,SIG_IGN)表示对这个信号忽略。
+	signal函数的返回值是那个信号原来的处理函数。如果失败返回SIG_ERR。
+	
+	信号可能会打断正在进行中的等待。被信号打断的等待函数一般会返回失败,errno
+	会被设置成EINTR。
+	sleep返回的是剩余的时间。
+	alarm(seconds)设置一个闹钟，然后继续执行，到时间后进程会收到一个SIGALRM
+	信号在时间到之前可以重新调用alarm重设闹钟，原来的闹钟作废，返回剩余的时间。
+	参数用0表示取消闹钟。
+	定时器（setitimer(种类,定时时间,返回旧的时间)//getitimer
+	头文件<sys/time.h>
+	定时器种类有ITIMER_REAL（实时）、ITIMER_VIRTUAL（虚拟时钟）和ITIMER_PROF
+	（概要时钟），超时时信号分别为SIGALRM、SIGVTALRM和SIGPROF。定时器会反复
+	发生超时(时间到)，每隔指定时间发生一次。时间用结构指针const struct 
+	itimerval* 指定。结构定义：
+    struct itimerval {
+        struct timeval it_interval;//时间间隔，不要是0
+        struct timeval it_value;//第一次等多久，不要是0
+	};
+    struct timeval {
+        long tv_sec;//秒数 
+        long tv_usec;//微秒
+	};
+	
+	父进程通过捕获SIGCHLD信号来处理子进程结束信息，避免等待和轮询。
+	signal(SIGCHLD,SIG_IGN)在linux系统中表示子进程结束后自动回收。
+	在传递过程中，多个相同的信号可能会合并成一个。
+	kill %<后台进程编号>
+	kill -信号 进程id
+	kill(进程id，信号)向进程发信号。进程id正常为正值，如果为0表示给本进程组
+	（子进程创建时跟父进程同组）的所有进程发信号，如果为-1表示给所有进程发
+	信号,如果小于-1表示给负值的绝对值对应的那个进程组的所有进程发信号。信号
+	正常也是正值。如果是0表示不发信号，但检查是否有权发信号，往往用来判断某
+	个进程是否存在。成功返回0，失败返回-1。errno值EPERM表示没有权限，ESRCH
+	表示进程不存在。raise(信号)向本进程发信号。等同于kill(getpid(),信号)
+	psignal(信号，提示信息)类似perror(提示信息)
+	strsignal(信号)返回信号对应的描述字符串
+守护进程（精灵进程）daemon
+	后台服务进程。它不占据终端（fork之后让父进程结束）。一般关闭0、1、2这
+	三个文件。调用setsid()自己新建一个进程组，脱离原来父进程的进程组，新进
+	程组的id也就是这个进程的id。重新设置权限屏蔽和当前目录。之后就是精灵进
+	程真正的服务工作代码了。
+
+	精灵进程的一般步骤：
+		if(fork()!=0) return;
+		int fd;
+		for(fd=0; fd<3; fd++) close(fd);
+		setsid();
+		umask(0022);
+		chdir(getenv("HOME"));
+		//精灵进程的正常工作写在后面
+	
+信号集：如果需要对一组信号进行操作，就可以使用信号集。	
+	sigset_t ss;
+	sigemptyset(&ss)清空一个信号集
+	sigfillset(&ss)填满一个信号集
+	sigaddset(&ss,信号)向信号集中添加一个信号
+	sigdelset(&ss,信号)从信号集中删除一个信号
+	sigismember(&ss,信号)判断一个信号是否在信号集里
+	sigset_t oldss;
+	sigprocmask(how, &ss, &oldss);指定信号屏蔽。 how为SIG_BLOCK时表示在
+	原来屏蔽的信号集中增加ss中的信号，how为SIG_UNBLOCK时表示从原来屏蔽的
+	信号集中去掉ss中的信号，how为SIG_SETMASK时表示把屏蔽信号信设为ss,其它
+	信号一律不屏蔽。屏蔽只是暂时阻塞这些信号，直到取消屏蔽为止，信号不会
+	被丢弃。oldss取得原来的屏蔽信号集。函数的后两个参数之一为空。返回0
+	或者-1。
+	sigpending(&ss)取得来了但被阻塞的信号组成一个信号集。
+	sleep(...)限时等待,pause()不限时等待，在遇到信号时都会返回。
+	sigsuspend(...)自己man一下。
+信号的高级处理：
+	int sigaction(int signum,
+		const struct  sigaction  *act,
+		struct sigaction *oldact);
+	设置对某个信号的处理方法act，并取得那个信号原来的处理方法oldact。
+	struct sigaction {
+		void (*sa_handler)(int);//跟signal的参数一样
+		void (*sa_sigaction)(int,siginfo_t *, void *);
+		//带三个参数的信号处理函数，第三个没用
+		sigset_t sa_mask;//处理信号时要屏蔽的信号集
+		int sa_flags;//0表示使用一个参数的信号处理函数，SA_SIGINFO表示
+		使用三个参数的信号处理函数
+		void (*sa_restorer)(void);//没用
+	}；
+	三个参数的信号处理函数的格式：
+	void func(int sig,siginfo_t*p,void*);
+	siginfo_t {
+		int      si_signo;  /* Signal number */
+		int      si_code;   /* Signal code */
+		pid_t    si_pid;    /* Sending process ID */
+		uid_t    si_uid;    /* Real user ID of sending process */
+		...
+		sigval_t si_value;  /* Signal value */
+		...
+	};
+	其中sigval_t是个联合的别名。
+	union sigval {
+		int   sival_int;
+		void *sival_ptr;
+	};
+	发送信号用sigqueue(pid,sig,sigval);发送时pid就是目标进程,getpid()
+	==>si_pid,getuid()==>si_uid,sig==>si_signo,sigval==>si_value，
+	这些数据会传递给三个参数的信号处理函数的结构变量。
+	
+进程间通信：
+	mmap:
+	#include <sys/mman.h>
+    void *mmap(void *start,size_t length,int prot,int flags,int fd,
+	off_t offset);把文件映射成内存。其中start是指定内存地址，一般用
+	NULL表示由系统自行选择，length表示要映射的文件长度，不应该超过文
+	件的实际长度。prot是访问类型，可以是PROT_EXEC、PROT_READ、
+	PROT_WRITE之一或者组合,flags是MAP_SHARED(允许在进程间共享)与
+	MAP_PRIVATE（不共享）二选一，之后可以再跟MAP_ANONYMOUS(不用文件)
+	MAP_FIXED（必须用start指定的内存地址）组合。fd是打开的文件描述符,
+	打开方式必须要能支持prot指定的访问类型,而且至少要可读。offset表示
+	从文件的什么位置开始映射，必须是内存页大小(getpagesize)的整倍数。
+    munmap(地址，长度)取消映射
+    以共享方式映射时，对内存的修改会反映在文件内容上，如果多个进程对
+	同一个文件进行共享映射，任何一个进程对这块内存的修改，其它进程也
+	可以看到。如果以私有的方式映射文件，对内存的修改不影响文件，其它
+	进程也看不到。
+    ftruncate/truncate函数调整文件的大小，man之。
+	管道：
+		进程间通信方式，借助文件系统，单向数据传输。如果需要双向通信,
+		可以使用两个管道。
+		mkfifo命令
+		#include <sys/stat.h>
+        int mkfifo(const char *pathname, mode_t mode);
+		管道文件的长度为0。可以用open/close/read/write这一套函数对管道
+		文件进行操作，也可以用unlink来删除,但不能lseek。打开管道文件时,
+		必须有读写双方，只有其中一方时打开操作会阻塞，除非open带标志
+		O_NONBLOCK或O_NDELAY。
+	system V IPC(inter-processes communication)
+	三种进程间通信的方式用法相似。ipcs/ipcrm命令用来显示进程间通信对象
+	状态和删除进程间通信对象。
+	共享内存：
+	#include <sys/ipc.h>
+	#include <sys/shm.h>
+		shmget(key,size,权限|标志)取得一个跟key关联的共享内存对象。权限
+		跟文件权限一样,标志可以是IPC_CREAT(如果不存在就创建)和IPC_EXCL
+		(必须新建)任选组合。key是一个整数。返回对象id，失败返回-1。
+		shmat(id,地址,标志)把共享内存对象连接到本进程中的指定地址。指定
+		地址一般用NULL表示由系统自行安排。
+		标志一般用0表示可读可写，也可以用SHM_RDONLY表示只读。返回共享内
+		存地址。
+		shmdt(地址);断开与共享内存对象的连接，相应的共享内存地址就不能够
+		再访问了。
+		shmctl(id, IPC_RMID, NULL)删除一个共享内存对象。
+		key如果用0（IPC_PRIVATE)表示本共享内存对象为私有，不能以这个为
+		key去取得别的key为0的共享内存对象。如果共享内存对象已经存在,
+		size、权限|标志都可以用0
+	消息队列：
+	#include <sys/ipc.h>
+	#include <sys/msg.h>
+		msgget(key,权限|标志)取得或者创建一个跟key关联的消息队列。key,
+		权限、标志都跟shmget一样。返回id或者-1。
+		msgsnd(id,const void *msgp, size, int msgflg);发送数据到消息队列。
+		其中msgflg可以取0或者IPC_NOWAIT,后者表示发送时不等待，0表示发送时
+		如果队列满了就等待。msgp是一个结构指针，指向的结构的第一个成员必须
+		是long类型的，这个成员的值会被当成通道号。
+		一个消息队列里可以有若干个互不干扰的通道，通道号用一个正数来表示。
+		发送时把整个结构变量都发送过去，size要设置成结构变量的字节数。
+		返回0或者-1。
+		msgrcv(id, void *msgp, size, 通道号, int msgflg);从消息队列中接收
+		消息。其中msgflg可以取0或者IPC_NOWAIT,后者表示接收时不等待，0表示
+		接收时如果没有数据就等待。通道号用0表示无论哪个通道。msgp是结构指针,
+		要跟msgsnd发送的一致。size是结构大小。返回成功接收到的字节数或者-1。
+		msgctl(id,IPC_RMID,NULL)删除消息队列对象。
+	信号量集：
+
