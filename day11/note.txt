@@ -1,0 +1,124 @@
+网络通信：
+格式转换：
+	IP地址：
+		inet_pton(af,ip字符串,&内部格式)把字符串格式的ip地址转换成内部格式。
+		inet_ntop(af,&内部格式,char数组,数组长度)把内部格式的ip地址转换成点
+		分十进制的字符串格式保存在char数组中并返回那个字符串。
+		af用来指定地址家族，AF_INET/AF_INET6，也可以用PF_INET/PF_INET6.
+		(Address,Protocol)
+	字节顺序：0x00000001(01 00 00 00)=>0x01000000
+		htons(short)   host to network,short
+		htonl(long)   host to network,long
+		ntohs(short)＝＝htons
+		ntohl(long)＝＝htonl
+		向网络上传递数据时，要先转换成网络字节顺序，接收到来自网络的数据时，
+		要转换回本机字节顺序。
+		小端系统：把低位数据先保存在前面的字节Linux
+		大端系统：把高位数据先保存在前面的字节UNIX
+TCP：传输控制协议，可靠的，面向数据流的，类似于文件。
+	建立连接：三次握手
+		A:  SYN(1000)-->             B
+		A:  <--ACK(1001),SYN(800)    B
+		A:  ACK(801)-->              B
+	断开连接: 四次
+		A:  FIN(2000)-->             B
+		A:  <--ACK(2001)             B
+		A:  <--FIN(3000)             B
+		A:  ACK(3001)-->             B
+	每次(批)发送数据都有确认，没有得到确认或者得到错误的确认就重发，超时
+	返回失败。
+	一般用于服务器和客户端之间。
+	 server服务器--------------客户端client
+	建立套接字socket()    ｜     socket
+	绑定IP和端口bind()    ｜       x
+	监听并发连接listen()  ｜        x
+	反复：                ｜
+		接受连接accept()  ｜ 连接到服务器connect()
+		返回一个新套接字   ｜
+			   反复：用新套接字跟客户端通信   
+			write()             read()
+			read()              write()
+		关闭新套接字close()      close()
+		终止对这一客户端的服务|
+	
+	套接字是操作系统提供的网络通信接口，大家可以把它想像成一个电话机。
+	socket.h中定义了一个结构sockaddr，但程序中不用它，而是根据不同需要，
+	用sockaddr_in/sockaddr_in6/sockddr_un结构，分别处理IPv4、IPv6和本地
+	套接信息。套接信息包括地址家族、ip地址和端口号（本地通信则用地址家
+	庭和套接字文件）。一个套接字在使用上就是一个文件描述符。
+	ifconfig -a
+	gethostname/gethostbyname
+	getaddrinfo/getnameinfo
+TCP服务器:
+	s=socket(AF_INET/*地址家族*/,SOCK_STREAM/*TCP协议*/, 0)返回一个套
+	接字（文件描述符），失败-1。
+	struct sockaddr_in si;
+	si.sin_family = AF_INET;//跟前面的一致
+	si.sin_addr.s_addr = INADDR_ANY;//0,本机的任何ip
+	si.sin_port = htons(PORT);
+	bind(s,A(si),sizeof(si));绑定套接信息，成功返回0，失败-1
+	listen(s,10/*允许的并发连接数*/)指定允许同时发生的连接请求，而不是
+	同时存在的连接。返回0或-1
+	循环：
+		accept(s,sockaddr_in*,socklen_t*)等待客户连接请求，进行连接，
+		返回一个新套接字，新套接字用来跟客户端进行通信。还会通过第二三
+		两个参数返回客户端的套接信息及其长度。其中第三个参数必须先设置
+		成服务器的套接信息的长度。失败返回-1。
+		socklen_t len = sizeof(si);
+		int c = accept(s,A(si),&len);
+	接下来就是用新套接字c跟客户端通信，完成后关闭c。
+	如果是在unix系统中，还需要连接两个库：
+		-lsocket
+		-lnsl
+
+TCP客户端：
+	建立套接字int s=socket(AF_INET,SOCK_STREAM,0);
+	连接到服务器，用套接信息来指定哪个服务器。
+		struct sockaddr_in si;//<netinet/in.h>
+		成员：
+			sa_family_t sin_family;//AF_INET
+			short sin_port;//端口号,htons
+			struct in_addr sin_addr;//IP内部格式
+			成员：
+				in_addr_t s_addr;
+		connect(s,A(si),sizeof(si));返回0或-1。
+	之后就可以用套接字s跟服务器通信了。完事后关闭s。
+TCP一般用C/S模式。
+
+UDP:用户数据报协议，面向消息，不保证可靠（内容和顺序）
+	优点：高效。
+	服务器客户端几乎对等。
+	建立套接字int s=socket(AF_INET,SOCK_DGRAM,0);
+	绑定套接信息（ip和端口）只有服务器需要
+		struct sockaddr_in si;
+		si.sin_family = AF_INET;
+		si.sin_addr.s_addr = INADDR_ANY;
+		si.sin_port = htons(PORT);
+		bind(s,(struct sockaddr*)&si,sizeof(si));
+	收发信息:
+		发：
+		struct sockaddr_in sp;
+		sp.sin_family = AF_INET;
+		sp.sin_addr.s_addr = 对方IP;
+		sp.sin_port = htons(对方PORT);
+		sendto(s,内存地址,字节数,标志,A(sp),sizeof(sp));向对方发送一个
+		消息，按指定的内存地址和字节数取数据，标志可以是MSG_DONTWAIT
+		表示不等待或者0表示发送缓冲区满时等待。返回发送的字节数或-1。
+		收：
+		struct sockaddr_in sc;
+		socklen_t len=sizeof(sc);
+		recvfrom(s,内存地址，字节数，标志，A(sc)，&len);接收数据保存在
+		指定内存地址开始的地方,不超过指定字节数,标志可以是MSG_DONTWAIT
+		表示不等待或者0表示没有数据时等待。sc和len用来保存对方的套接
+		信息及其长度。
+	关闭套接字close(s)
+进程间通信：本地网络，TCP/UDP都可以。这里用UDP
+	socket(AF_LOCAL,SOCK_DGRAM,0);
+	<sys/un.h>
+	struct sockaddr_un su;
+	su.sun_family = AF_LOCAL;
+	strcpy(su.sun_path,文件名);
+	bind(s,(...)&su,sizeof(su)) / connect(s,(...)&su,sizeof(su))
+	read/write()
+	close(s)
+	unlink(文件名)
