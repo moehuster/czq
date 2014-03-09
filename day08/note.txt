@@ -168,6 +168,20 @@
 	system V IPC(inter-processes communication)
 	三种进程间通信的方式用法相似。ipcs/ipcrm命令用来显示进程间通信对象
 	状态和删除进程间通信对象。
+	key是创建和获取IPC通信结构的唯一依据。
+	生成key:
+		1) 直接使用IPC_PRIVATE 作为key.这种办法很少用,因为IPC_PRIVATE只能
+		在创建IPC的时候使用。
+		2) 在共享头文件中直接定义key的值
+		3) 调用ftok()函数生成key. ftok()函数要求路径是真实的。
+	都需要IPC结构通信.
+	IPC结构是内核创建并管理的一个通信媒介.
+	创建和获得ID都是同一个函数,创建时都需要指定标志:IPC_CREAT,如果想创建
+	的结构已经存在那么IPC_EXCL就会起作用,另外,标志中一定要有权限.
+	控制函数 shmctl msgctl semctl 共同功能:
+	IPC_STAT: 用来获取IPC结构的属性,并保存到指定结构中
+	IPC_SET: 用来修改权限
+	IPC_RMID: 用来删除IPC结构.
 	共享内存：
 	#include <sys/ipc.h>
 	#include <sys/shm.h>
@@ -185,6 +199,11 @@
 		key去取得别的key为0的共享内存对象。如果共享内存对象已经存在,
 		size、权限|标志都可以用0
 	消息队列：
+	无类型消息: 任何类型的数据都可以作为消息发送和接受
+	有类型消息: 有类型消息一定是一个结构体,而且结构的第一个成员一定是long
+	类型的成员,表示消息的类型。
+	无类型消息可以直接发送，接受时指定消息类型为0
+	有类型消息发送时必须发送结构体消息，消息的类型正整数
 	#include <sys/ipc.h>
 	#include <sys/msg.h>
 		msgget(key,权限|标志)取得或者创建一个跟key关联的消息队列。key,

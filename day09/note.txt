@@ -1,0 +1,41 @@
+进程间通信system V IPC
+	信号量集:一组信号量，信号量就是一个资源计数器。事先设定计数器值，取用
+	一次就减1,如果已经不够减了就等待直到够减了为止(除非设置了标志IPC_NOWAIT).
+	每归还一次就加1。大多数时候信号量集里都只放1个信号量。
+#include <sys/ipc.h>
+#include <sys/sem.h>
+	semget(key,nsems,flg)创建或者取得一个跟key关联的信号量集。其中nsems表示
+	这个信号量集里信号量的个数(一般用1),flg是权限和IPC_CREAT,IPC_EXCL的组合。
+	返回id或者-1。
+	semctl
+		semctl(id,index,SETVAL,n)设置一个信号量计数器的值，其中index表示下标
+		(第一个为0,第二个为1,...),如果只有一个信号量,index总是0。n是要设置的
+		计数器值，应该是个正数。
+		semctl(id,0,IPC_RMID,NULL);删除信号量集。
+	semop(id, struct sembuf sops[], n); 对信号量集进行一组操作,sops是一个结构
+	数组，n是元素个数，每个元素表示一个操作。一般只用一个元素，n几乎总是1.
+	struct sembuf结构包含如下成员：
+           unsigned short sem_num;  //下标
+           short          sem_op;   //操作，-1或者1,表示取用或者归还
+           short          sem_flg;  //可以用IPC_NOWAIT(不等待0或者SEM_UNDO
+		   (进程终止时自动恢复它对信号量的操作),可以组合。
+	进程间通信对象是内核维护的对象，即使进程结束，只要没有执行删除操作(xxxctl
+	函数,ipcrm)它就还在，里面的数据也不会丢失。
+线程：thread
+	在一个进程空间里分出多个执行流程来。每个进程里总是至少有一个执行流程，称为
+	主线程.可以开启多个线程并行执行.线程间所有内存都是共享的,通信就非常方便。
+	各自有各自的线程id(pthread_self()取得自己的线程id),栈,errno(不要用perror).
+	库文件libpthread.so，gcc -lpthread
+	头文件pthread.h 
+	pthread_t id;
+	创建pthread_create(&id,NULL/*默认属性*/,线程函数,传递给线程函数的参数)
+	创建一个线程，成功返回0，失败返回错误号。线程函数几乎都按这样的规则来返
+	回值。线程创建之后就立即可以跟其它线程并行执行。线程函数执行完毕返回,线
+	程就结束了。pthread_exit(void*)让线程结束返回。exit(int)会让整个进程结束，
+	所有线程都终止。main函数的return相当于exit(int)。
+	线程函数格式：void* func(void* p);
+	主线程应该等待其它线程结束才结束进程。
+	多个线程的执行顺序不确定，由系统调度。
+	void* ret;
+	pthread_join(id,&ret)等待指定线程结束
+	pthread_cancel(id)
