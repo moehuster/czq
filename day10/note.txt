@@ -1,0 +1,74 @@
+多线程：	
+	void* ret;
+	pthread_join(id,&ret)等待指定线程结束，并且取得线程的返回值(在ret中)。
+	pthread_join这个函数的返回值为0或者错误码。
+	//pthread_detach(id)表示线程结束后直接由系统收回,不用等待调pthread_join。
+	pthread_cancel(id)向一个线程发送终止请求。线程一般会在执行阻塞的系统函数
+	时终止，也可以在线程里调用pthread_testcancel()为本线程设置一个取消点(表示
+	线程可以在这里终止)。
+	
+线程间同步：
+	互斥量（互斥锁）：控制对资源的互斥操作
+	pthread_mutex_t m=PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_init(&m,NULL)两种方式都可以初始化。
+	pthread_mutex_lock(&m)对一个互斥量加锁。如果这个互斥量已经被加锁，则等待
+	它被解锁之后再加锁。同时只能有一个线程对它成功加锁。pthread_mutex_trylock
+	(&m)在不能加锁时返回失败。
+	pthread_mutex_unlock(&m)解锁。解锁还须加锁者。
+	对共享资源进行排它性操作时，一般要使用互斥锁。
+	
+	条件变量：用来等待某个条件的发生（替代无限循环中的加锁解锁）。由于条件变量
+	本身不带锁，所以总是要配合一个互斥锁一起使用。
+	pthread_mutex_t m=PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_lock(&m);
+	pthread_cond_t c=PTHREAD_COND_INITIALIZER;
+	pthread_cond_init(&c,NULL)两种方式都可以初始化。
+	pthread_cond_wait(&c,&m)等待条件的发生。做如下工作：
+		首先把互斥量m解锁
+		然后处于sleep状态等待条件发生
+		再把互斥量m加锁
+	pthread_cond_signal(&c)发送条件信息，让一个在等待这个条件的线程醒来(如果
+	有的话)。
+	pthread_cond_broadcast(&c)发送条件信息，让所有在等待这个条件的线程醒来。
+
+线程间同步：	
+	信号量：计数器。#include <semaphore.h>
+	sem_t s;
+	sem_init(&s,是否用于进程间共享,计数器值)初始化一个计数器，一般第二个参数
+	用0表示不用于进程间共享。进程间如果需要共享信号量，建议用信号量集。
+	sem_wait(&s)计数器减1,如果不够减就阻塞直到够了为止.sem_trywait/sem_timedwait
+	分别表示尝试减1和限时减1，如果成功就真完成减1，返回0，失败则返回-1。
+	sem_post(&s)计数器加1。如果这时有多个线程在等待，其中一个会被放行。
+	销毁:
+		sem_destroy(&s),
+		pthread_cond_destroy(&c),
+		pthread_mutex_destroy(&m).
+	
+网络通信基础：
+	协议:ISO有OSI七层协议:物理层,数据链路层(MAC地址),网络层(IP地址),传输层
+	(端口号,TCP/UDP),会话层,表示层,应用层.TCP/IP协议:硬件驱动,互联网层(IP),
+	传输层(端口号,TCP/UDP),应用层.
+	IP分类：按第一个数的二进制形式
+		A类IP 0xxxxxxx 
+		B类IP 10xxxxxx
+		C类IP 110xxxxx
+		D类IP 1110xxxx
+		E类 
+	子网掩码：255.255.255.0
+		只要IP跟子网掩码相与结果相同的就算同一个网。
+	192.168.0.23
+	172.16.6.33
+	特殊IP：10.*.*.*，172.16.*.*, 192.168.*.*局域网专用
+		127.*.*.*本机（常用127.0.0.1）
+	网络地址：IP跟子网掩码相与的结果称为网络地址。 
+		192.168.1.23，255.255.255.0＝＝＞192.168.1.0
+		剩余部分称为主机地址。
+		192.168.1.23，255.255.255.0＝＝＞23
+		inet_pton(int af, const char *src, void *dst);把字符串格式(点分
+		十进制格式)的ip地址转换成内部格式（整数格式）。af表示地址家族，
+		AF_INET,AF_INET6,AF_LOCAL这三个值分别表示IPv4、IPv6和本地网络
+		inet_ntop(int af, const void *src, char *dst, socklen_t cnt); 
+		把内部格式的IP地址转换成字符串格式保存在dst数组中,cnt是数组长度。
+		#include <sys/types.h>
+		#include <sys/socket.h>
+		#include <arpa/inet.h>
